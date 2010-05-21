@@ -1,0 +1,398 @@
+<?php
+// $Id: swfupload.info, v 0.1, 2008/10/13 10:02:46, skilip Exp $
+
+/**
+ * @file
+ *
+ * A widget for CCK's Filefield which enables multiple file uploads using the SWFUpload library.
+ */
+
+/**
+ * Implementation of hook_perm().
+ */
+function swfupload_perm() {
+  return array('upload files with swfupload');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function swfupload_menu() {
+  $items['swfupload'] = array(
+    'page callback' => 'swfupload_js',
+    'access callback' => 'swfupload_access',
+    'type' => MENU_CALLBACK,
+    'file' => 'swfupload.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Validate access to the swfuploadpath
+ */
+function swfupload_access() {
+  $result = FALSE;
+  $p = (object) $_POST;
+
+  // Validate the request
+  if ($p->sid) {
+    $sid = split("\*", hex2bin($p->sid));
+
+    global $user;
+    $user = user_load($sid[0]);
+
+    if (!user_access('upload files with swfupload')) {
+      return FALSE;
+    }
+
+    if (!$user->uid) {
+      return ($sid[1] == md5($_SERVER['REMOTE_ADDR']));
+    }
+
+    $result = db_query("SELECT sid FROM {sessions} WHERE uid = %d", $sid[0]);
+    while ($row = db_fetch_object($result)) {
+      $valid_sids[] = md5($row->sid);
+    }
+
+    if (in_array($sid[1], $valid_sids)) {
+      return TRUE;
+    }
+
+    // The sid doesn't exist for this user.
+    return FALSE;
+  }
+  // No session ID is set, we can assume we're still in the same session
+  return (($p->op) && user_access('upload files with swfupload'));
+}
+
+/**
+ * Implementation of hook_widget_info().
+ */
+function swfupload_widget_info() {
+  return array(
+    'swfupload_widget' => array(
+      'label' => t('SWFUpload'),
+      'field types' => array('filefield'),
+      'multiple values' => CONTENT_HANDLE_MODULE,
+      'callbacks' => array(
+        'default value' => CONTENT_CALLBACK_CUSTOM,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of CCK's hook_widget_settings().
+ *
+ * Delegated to filefield.
+ */
+function swfupload_widget_settings($op, $widget) {
+  module_load_include('inc', 'swfupload', 'swfupload_widget');
+  switch ($op) {
+    case 'form':
+      return swfupload_widget_settings_form($widget);
+    case 'validate':
+      return swfupload_widget_settings_validate($widget);
+    case 'save':
+      return swfupload_widget_settings_save($widget);
+  }
+}
+
+/**
+ * Implementation of hook_widget().
+ */
+function swfupload_widget(&$form, &$form_state, $field, $items, $delta = 0) {
+  $element = array(
+    '#type' => 'swfupload_widget',
+    '#default_value' => $items,
+  );
+  return $element;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function swfupload_theme() {
+  return array(
+    'swfupload_widget' => array(
+      'arguments' => array('element' => NULL),
+      'file' => 'swfupload.admin.inc',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_elements().
+ */
+function swfupload_elements() {
+  $filefield_elements = module_invoke('filefield', 'elements');
+  $elements['swfupload_widget'] = $filefield_elements['filefield_widget'];
+  $elements['swfupload_widget']['#process'] = array('swfupload_widget_process');
+  $elements['swfupload_widget']['#element_validate'] = array('swfupload_widget_validate');
+
+  // ImageField needs a separate value callback to save its alt and title texts.
+  $elements['swfupload_widget']['#value_callback'] = 'swfupload_widget_value';
+
+  $elements['swfupload_widget']['#after_build'] = array('swfupload_add_js');
+  return $elements;
+}
+
+/**
+ * An #element_validate callback for the filefield_widget field.
+ */
+function swfupload_widget_validate(&$element, &$form_state) {
+
+  $element_value = $element['#value'];
+  if (!empty($element_value)) {
+    foreach (array_values($element_value) as $key => $file) {
+      $form_state['values'][$element['#field_name']][$key] = array(
+        'fid' => $file['fid'],
+        'list' => $file['list'],
+        'data' => array(
+          'description' => $file['description'],
+          'alt' => $file['alt'],
+          'title' => $file['title'],
+        ),
+      );
+      unset($form_state['values'][$element['#field_name']][$file['fid']]);
+    }
+    unset($form_state['values'][$element['#field_name']]['data']);
+  }
+}
+
+/**
+ * The #value_callback for the swfupload_widget type element.
+ */
+function swfupload_widget_value($element, $edit = FALSE) {
+  if (is_string($edit)) {
+    $edit = json_decode($edit, TRUE);
+  }
+
+  if (!$edit) {
+    $default_value = array();
+
+    if (is_array($element['#default_value'])) {
+      foreach ($element['#default_value'] as $file) {
+        if ($file) {
+          $file += array('description' => $file['data']['description'], 'alt' => $file['data']['alt'], 'title' => $file['data']['title']);
+          unset($file['data']);
+
+          // If we're dealing with an image, create a thumbpath
+          if (image_get_info($file['filepath'])) {
+            $file['thumb'] = file_create_url(swfupload_thumb_path($file));
+          }
+          $default_value[$file['fid']] = $file;
+        }
+      }
+    }
+    return $default_value;
+  }
+  else {
+    return $edit;
+  }
+}
+
+/**
+ * Process an individual element.
+ *
+ * Build the form element. When creating a form using FAPI #process,
+ * note that $element['#value'] is already set.
+ *
+ * The $fields array is in $form['#field_info'][$element['#field_name']].
+ */
+function swfupload_widget_process($element, $edit, $form_state, $form) {
+  if (module_exists('imagefield')) {
+    $element += imagefield_widget_process($element, $edit, $form_state, $form);
+    unset($element['#theme']);
+  }
+  $element['#default_value'] = '[]';
+  return $element;
+}
+
+/**
+ * This function is called after the FAPI element is processed.
+ * Here we can safely attach our javascript
+ */
+function swfupload_add_js($element) {
+  // Get the path to the swfupload module.
+  $path = drupal_get_path('module', 'swfupload');
+
+  $field = content_fields($element['#field_name'], $element['#type_name']);
+  $swfupload_library = jqp_library_load('swfupload');
+
+  if (drupal_add_library('swfupload', '2.2.0.1') !== FALSE) {
+    // Put the values of the list field and description field in the widget array
+    // so we can pass it to our hook_swfupload implementation.
+    $field['widget']['list_field'] = $field['list_field'];
+    $field['widget']['list_default'] = $field['list_default'];
+    $field['widget']['description_field'] = $field['description_field'];
+  
+    $limit = ($field['multiple'] == 1 ? 0 : ($field['multiple'] == 0 ? 1 : $field['multiple']));
+  
+    $settings['swfupload_settings'][$element['#id']] = array(
+      'module_path' => $path,
+      'flash_url' => base_path() . str_replace('.js', '.swf', array_shift($swfupload_library->scripts['2.2.0.1'])),
+      'upload_url' => url('swfupload'),  // Relative to the SWF file
+      'upload_button_id' => $element['#id'],
+      'file_post_name' => $element['#name'],
+      'file_queue_limit' => $limit,
+      'post_params' => array(
+        'sid' => _post_key(),
+        'file_path' => file_directory_path() .'/'. $field['widget']['file_path'],
+        'op' => 'move_uploaded_file',
+        'instance' => drupal_to_js(array('name' => $element['#field_name'])),
+        'widget' => drupal_to_js($field['widget']),
+      ),
+      'file_size_limit' => ($field['widget']['max_filesize_per_file'] ? $field['widget']['max_filesize_per_file'] : 0),
+      'file_types' => '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions']),
+      'file_types_description' => ($element['#description'] ? $element['#description'] : ''),
+      'file_upload_limit' => $limit,
+      'custom_settings' => array(
+        'upload_stack_value' => (!empty($element['#value'])) ? drupal_to_js($element['#value']) : '[]',
+        'max_queue_size' => ($field['widget']['max_filesize_per_node'] ? $field['widget']['max_filesize_per_node'] : 0),
+      ),
+    );
+    drupal_add_js('misc/tabledrag.js');
+    drupal_add_js("$path/js/swfupload_widget.js");
+    drupal_add_js($settings, 'setting');
+  }
+
+  return $element;
+}
+
+/**
+ * Generates an unique key, used for validating  upload requests
+ */
+function _post_key() {
+  global $user;
+  return bin2hex("$user->uid*". md5(($user->uid ? $user->sid : $_SERVER['REMOTE_ADDR'])));
+}
+
+/**
+ * Converts an hexadecimal string to binairy
+ */
+function hex2bin($h) {
+  if (!is_string($h)) {
+    return NULL;
+  }
+  $r = '';
+  for ($a = 0; $a < drupal_strlen($h); $a += 2) {
+    $r .= chr(hexdec($h{$a} . $h{($a + 1)}));
+  }
+  return $r;
+}
+
+/**
+ * Implementation of hook_swfupload().
+ */
+function swfupload_swfupload(&$file, $op, &$instance, $widget) {
+  switch ($op) {
+    case 'init':
+      $columns = 0;
+      if ($widget->description_field) {
+        $instance->elements['description'] = $instance->elements['filename'];
+        $instance->elements['description']['type'] = 'textarea';
+        $instance->elements['drag']['title'] = t('Description');
+        unset($instance->elements['filename']);
+      }
+      if ($widget->list_field) {
+        $instance->elements['list'] = array(
+          'title' => t('List'),
+          'type' => 'checkbox',
+          'default_value' => $widget->list_default,
+          'class' => 'checkbox',
+          'contains_progressbar' => TRUE,
+          'add_separator' => TRUE,
+        );
+        $columns++;
+      }
+      foreach (array('alt' => t('Alt'), 'title' => t('Title')) as $elem => $title) {
+        if ($widget->{"custom_$elem"}) {
+          $instance->elements[$elem] = array(
+            'title' => $title,
+            'type' => ($widget->{$elem .'_type'} ? $widget->{$elem .'_type'} : 'textfield'),
+            'default_value' => $widget->{$elem},
+            'class' => 'text',
+            'contains_progressbar' => TRUE,
+            'add_separator' => TRUE,
+          );
+          // Replace tokens.
+          if (module_exists('token')) {
+            $instance->elements[$elem]['default_value'] = token_replace($instance->elements[$elem]['default_value']);
+          }
+          $columns++;
+        }
+      }
+      if ($columns == 0) {
+        $instance->elements['progress'] = array(
+          'type' => 'markup',
+          'value' => '<span>&nbsp;</span>',
+          'class' => 'checkbox',
+          'contains_progressbar' => TRUE,
+        );
+      }
+      unset($instance->elements[$elem]['add_separator']);
+      break;
+
+    case 'move_uploaded_file':
+      if (isset($_FILES["Filedata"]) && is_uploaded_file($_FILES["Filedata"]["tmp_name"]) && $_FILES["Filedata"]["error"] == 0) {
+        // Set a message of the type 'swfupload_error' in order to place the message in the progressbar.
+        drupal_set_message(t('There was an error uploading the file'), 'swfupload_error');
+        return;
+      }
+
+      $_FILES['files']['name'][$instance->name] = $_FILES[$instance->name]['name'];
+      $_FILES['files']['type'][$instance->name] = $_FILES[$instance->name]['type'];
+      $_FILES['files']['tmp_name'][$instance->name] = $_FILES[$instance->name]['tmp_name'];
+      $_FILES['files']['error'][$instance->name] = $_FILES[$instance->name]['error'];
+      $_FILES['files']['size'][$instance->name] = $_FILES[$instance->name]['size'];
+
+      // Replace tokens.
+      if (module_exists('token')) {
+        $file->file_path = token_replace($file->file_path, 'user');
+      }
+
+      // Check if the file directory exists
+      file_check_directory($file->file_path, FILE_CREATE_DIRECTORY);
+
+      if (user_access('upload files with swfupload') && ($file = file_save_upload($instance->name, $file->validators, $file->file_path))) {
+        if (image_get_info($file->filepath)) {
+          $file->thumb = file_create_url(swfupload_thumb_path($file, TRUE));
+        }
+        break;
+      }
+      drupal_set_message(t('There was an error uploading the file'), 'swfupload_error');
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_jqp().
+ */
+function swfupload_jqp() {
+  $libraries['swfupload'] = array(
+    'name' => 'SWFUpload',
+    'description' => 'This library allows you to upload multiple files at once by ctrl/shift-selecting in dialog boxed.',
+    'project_url' => 'http://code.google.com/p/swfupload/',
+    'scripts' => array(
+      '2.2.0.1' => array('swfupload.js'),
+    ),
+  );
+  return $libraries;
+}
+
+/**
+ * Given a file, return the path the image thumbnail used while editing.
+ */
+function swfupload_thumb_path($file, $create_thumb = FALSE) {
+  $file = (object) $file;
+  $short_path = preg_replace('/^' . preg_quote(file_directory_path(), '/') . '/', '', $file->filepath);
+  $filepath = file_directory_path() . '/imagefield_thumbs' . $short_path;
+  $filepath = drupal_substr($filepath, 0, (strrpos($filepath, '/') + 1)) . rawurlencode(drupal_substr($filepath, (strrpos($filepath, '/') + 1)));
+
+  if ($create_thumb) {
+    module_load_include('inc', 'swfupload', 'swfupload.admin');
+    swfupload_thumb($file, $filepath);
+  }
+  return $filepath;
+}
