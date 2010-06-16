@@ -270,7 +270,7 @@ function SWFU(id, settings) {
             content.append(input.addClass('checkbox ' + (value ? 'checked' : '')));
             break;
           case 'markup':
-            //value = (file) ? (file[name] !== undefined) ? file[name] : ref.replaceMacros(elem_value, file) : elem_value;
+            value = (file) ? (file[name] !== undefined) ? file[name] : ref.replaceMacros(elem_value, file) : elem_value;
             content.append($('<div />').addClass('swfupload-markup').attr('id', 'swfupload-markup-' + name).html(value));
             break;
           default:
@@ -409,7 +409,10 @@ function SWFU(id, settings) {
           };
         }).parents('td').dblclick(function() {
           ref.toggleInput($(this).find('span'), true, file);
-        });
+        }).find('.wrapper').append($('<a href="#" />').text(Drupal.t('edit')).addClass('toggle-editable').click(function() {
+          ref.toggleInput($(this).parent().find('span'), true, file);
+          return false;
+        }));
         break;
 
       case 'drag_enable':
@@ -451,6 +454,7 @@ function SWFU(id, settings) {
    * Toggles editability of text spans inside tablerows
    */
   ref.toggleInput = function(obj, start, file) {
+    obj.hide().parent().toggleClass('editable-enabled');
     if (start) {
       obj.hide().parent().find('input:text, textarea').show().focus().select();
     }
@@ -465,7 +469,7 @@ function SWFU(id, settings) {
         obj.hide().parent().find('span').html('&nbsp;').show();
       }
       else {
-        obj.hide().parent().find('span').text(value).show();
+        obj.hide().parent().find('span').text((value == '&nbsp;' ? '' : value)).show();
       };
     };
     ref.updateStack(file);
@@ -845,12 +849,11 @@ function SWFU(id, settings) {
       case 'string':
         return '"'+ v.replace(/\n/g, '\\n') +'"';
       case 'object':
-        var output = "{";
+        var output = '';
         for(i in v) {
-          output = output + '"' + i + '"' + ":" + ref.toJson(v[i]) + ",";
+          output += (output ? ',' : '') + '"' + i + '":' + ref.toJson(v[i]);
         }
-        output = output.substr(0, output.length - 1) + "}";
-        return (output == '}') ? 'null' : output;
+        return '{' + output + '}';
       default:
         return 'null';
     };

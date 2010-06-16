@@ -1,5 +1,5 @@
 <?php
-// $Id: swfupload_widget.inc,v 1.2 2010/02/15 13:39:55 skilip Exp $
+// $Id:$
 
 /**
  * @file

@@ -1,5 +1,5 @@
 <?php
-// $Id: swfupload.info, v 0.1, 2008/10/13 10:02:46, skilip Exp $
+// $Id:$
 
 /**
  * @file
@@ -20,7 +20,7 @@ function swfupload_perm() {
 function swfupload_menu() {
   $items['swfupload'] = array(
     'page callback' => 'swfupload_js',
-    'access callback' => 'swfupload_access',
+    'access callback' => 'swfupload_upload_access',
     'type' => MENU_CALLBACK,
     'file' => 'swfupload.admin.inc',
   );
@@ -30,12 +30,12 @@ function swfupload_menu() {
 /**
  * Validate access to the swfuploadpath
  */
-function swfupload_access() {
+function swfupload_upload_access() {
   $result = FALSE;
   $p = (object) $_POST;
 
   // Validate the request
-  if ($p->sid) {
+  if (!empty($p->sid)) {
     $sid = split("\*", hex2bin($p->sid));
 
     global $user;
@@ -62,7 +62,7 @@ function swfupload_access() {
     return FALSE;
   }
   // No session ID is set, we can assume we're still in the same session
-  return (($p->op) && user_access('upload files with swfupload'));
+  return (!empty($p->op) && user_access('upload files with swfupload'));
 }
 
 /**
@@ -168,7 +168,7 @@ function swfupload_widget_value($element, $edit = FALSE) {
     $edit = json_decode($edit, TRUE);
   }
 
-  if (!$edit) {
+  if ($edit === false) {
     $default_value = array();
 
     if (is_array($element['#default_value'])) {
@@ -228,10 +228,17 @@ function swfupload_add_js($element) {
     $field['widget']['description_field'] = $field['description_field'];
   
     $limit = ($field['multiple'] == 1 ? 0 : ($field['multiple'] == 0 ? 1 : $field['multiple']));
-  
+
+    // We need to store the variable $flash_url statically while the 2nd time the script is loaded,
+    // $swfupload_library->scripts['2.2.0.1'] will be empty.
+    static $flash_url;
+    if (!$flash_url) {
+      $flash_url = base_path() . str_replace('.js', '.swf', array_shift($swfupload_library->scripts['2.2.0.1']));
+    }
+
     $settings['swfupload_settings'][$element['#id']] = array(
       'module_path' => $path,
-      'flash_url' => base_path() . str_replace('.js', '.swf', array_shift($swfupload_library->scripts['2.2.0.1'])),
+      'flash_url' => $flash_url,
       'upload_url' => url('swfupload'),  // Relative to the SWF file
       'upload_button_id' => $element['#id'],
       'file_post_name' => $element['#name'],
@@ -244,7 +251,7 @@ function swfupload_add_js($element) {
         'widget' => drupal_to_js($field['widget']),
       ),
       'file_size_limit' => ($field['widget']['max_filesize_per_file'] ? $field['widget']['max_filesize_per_file'] : 0),
-      'file_types' => '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions']),
+      'file_types' => (empty($field['widget']['file_extensions']) ? '' : '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions'])),
       'file_types_description' => ($element['#description'] ? $element['#description'] : ''),
       'file_upload_limit' => $limit,
       'custom_settings' => array(
@@ -252,7 +259,7 @@ function swfupload_add_js($element) {
         'max_queue_size' => ($field['widget']['max_filesize_per_node'] ? $field['widget']['max_filesize_per_node'] : 0),
       ),
     );
-    drupal_add_js('misc/tabledrag.js');
+    drupal_add_js('misc/tabledrag.js', 'core');
     drupal_add_js("$path/js/swfupload_widget.js");
     drupal_add_js($settings, 'setting');
   }
@@ -353,7 +360,7 @@ function swfupload_swfupload(&$file, $op, &$instance, $widget) {
       }
 
       // Check if the file directory exists
-      file_check_directory($file->file_path, FILE_CREATE_DIRECTORY);
+      field_file_check_directory($file->file_path, FILE_CREATE_DIRECTORY);
 
       if (user_access('upload files with swfupload') && ($file = file_save_upload($instance->name, $file->validators, $file->file_path))) {
         if (image_get_info($file->filepath)) {
@@ -375,7 +382,7 @@ function swfupload_jqp() {
     'description' => 'This library allows you to upload multiple files at once by ctrl/shift-selecting in dialog boxed.',
     'project_url' => 'http://code.google.com/p/swfupload/',
     'scripts' => array(
-      '2.2.0.1' => array('swfupload.js'),
+      '2.2.0.1' => array('sites/all/libraries/swfupload/swfupload.js'),
     ),
   );
   return $libraries;

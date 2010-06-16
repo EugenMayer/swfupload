@@ -137,6 +137,23 @@ table.swfupload td span {
 }
 
 /**
+ * Editable
+ */
+table.swfupload td .toggle-editable {
+  position: absolute;
+  right: 0px;
+  visibility: hidden;
+}
+
+table.swfupload td:hover .toggle-editable {
+  visibility: visible;
+}
+
+table.swfupload td .editable-enabled .toggle-editable {
+  display: none;
+}
+
+/**
  * Drag 
  */
 table.swfupload tr.dragging td {
@@ -313,8 +330,6 @@ html.js fieldset.collapsed #edit-upload .swfupload-wrapper .swfupload {
 /**
  * Messages
  */
-warning
-
 .swfupload .messages {
   margin: 0px;
 }

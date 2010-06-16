@@ -19,7 +19,7 @@ INSTALLATION:
 
 2. Download the jQuery Plugin Handler (jQp) module. This module is required for
    loading the SWFUpload javascript library.
-     (http://drupal.org/project/filefield)
+     (http://drupal.org/project/jqp)
 
 3. Place both modules, as well as the SWFUpload module, in your module
    directory.
