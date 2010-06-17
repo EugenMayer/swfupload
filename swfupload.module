@@ -40,15 +40,12 @@ function swfupload_upload_access() {
     
     // Use the core methods to restore the session
     global $user;
-    // fake the cookie, as sess_read wont work then and think we are a cookieless client
-    // ...but we are just a buggy flash client
-    $_COOKIE[session_name()] = 'dummy';
-    sess_read($sid[0]);
+    $user = user_load($sid[0]);
     // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token)
     session_id($user->sid);
 
     if (!user_access('upload files with swfupload')) {
-      return FALSE;
+      return true;
     }
 
     if (!$user->uid) {
@@ -260,6 +257,7 @@ function swfupload_add_js($element) {
       'file_types' => (empty($field['widget']['file_extensions']) ? '' : '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions'])),
       'file_types_description' => ($element['#description'] ? $element['#description'] : ''),
       'file_upload_limit' => $limit,
+      'debug' => true,
       'custom_settings' => array(
         'upload_stack_value' => (!empty($element['#value'])) ? drupal_to_js($element['#value']) : '[]',
         'max_queue_size' => ($field['widget']['max_filesize_per_node'] ? $field['widget']['max_filesize_per_node'] : 0),
