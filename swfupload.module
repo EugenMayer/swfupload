@@ -45,7 +45,7 @@ function swfupload_upload_access() {
     session_id($user->sid);
 
     if (!user_access('upload files with swfupload')) {
-      return true;
+      return false;
     }
 
     if (!$user->uid) {

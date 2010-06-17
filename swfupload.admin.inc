@@ -11,7 +11,6 @@
  * This function is executed when SFWUpload.swf requests a file upload
  */
 function swfupload_js() {
-  global $user;
   $p = (object) $_POST;
   $op = $p->op;
   $file = json_decode($p->file);
@@ -87,8 +86,7 @@ function swfupload_js() {
   if (is_array($instance->elements)) {
     array_walk($instance->elements, '_class_to_classname');
   }
-  $p->uid = $user->uid;
-  $p->test= 'test';
+  
   $p->op = $op;
   $p->file = $file;
   $p->file_path = $file_path;
