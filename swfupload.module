@@ -228,7 +228,7 @@ function swfupload_add_js($element) {
     $field['widget']['description_field'] = $field['description_field'];
   
     $limit = ($field['multiple'] == 1 ? 0 : ($field['multiple'] == 0 ? 1 : $field['multiple']));
-
+    
     // We need to store the variable $flash_url statically while the 2nd time the script is loaded,
     // $swfupload_library->scripts['2.2.0.1'] will be empty.
     static $flash_url;
@@ -250,7 +250,7 @@ function swfupload_add_js($element) {
         'instance' => drupal_to_js(array('name' => $element['#field_name'])),
         'widget' => drupal_to_js($field['widget']),
       ),
-      'file_size_limit' => ($field['widget']['max_filesize_per_file'] ? $field['widget']['max_filesize_per_file'] : 0),
+      'file_size_limit' => ($field['widget']['max_filesize_per_file'] ? (parse_size($field['widget']['max_filesize_per_file']) / 1048576) .'MB' : 0),
       'file_types' => (empty($field['widget']['file_extensions']) ? '' : '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions'])),
       'file_types_description' => ($element['#description'] ? $element['#description'] : ''),
       'file_upload_limit' => $limit,
