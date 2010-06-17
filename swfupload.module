@@ -170,10 +170,12 @@ function swfupload_widget_value($element, $edit = FALSE) {
 
   if ($edit === false) {
     $default_value = array();
-    
+
     if (is_array($element['#default_value'])) {
       foreach ($element['#default_value'] as $file) {
         if ($file) {
+          // Due to a bug in CCK or filefield, the fileobject store in the CCK cache (cache_content) is not stored fully
+          // that means some fields are simply missing (filepath etc.). We need to properly restore it here 
           $file = field_file_load($file['fid']);
           $file += array('description' => $file['data']['description'], 'alt' => $file['data']['alt'], 'title' => $file['data']['title']);
           unset($file['data']);
@@ -202,12 +204,11 @@ function swfupload_widget_value($element, $edit = FALSE) {
  * The $fields array is in $form['#field_info'][$element['#field_name']].
  */
 function swfupload_widget_process($element, $edit, $form_state, $form) {
-  dsm($element);
   if (module_exists('imagefield')) {
     $element += imagefield_widget_process($element, $edit, $form_state, $form);
     unset($element['#theme']);
   }
-  dsm($element);
+
   $element['#default_value'] = '[]';
   return $element;
 }
