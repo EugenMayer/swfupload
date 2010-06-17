@@ -247,15 +247,15 @@ function swfupload_add_js($element) {
         'sid' => _post_key(),
         'file_path' => file_directory_path() .'/'. $field['widget']['file_path'],
         'op' => 'move_uploaded_file',
-        'instance' => drupal_to_js(array('name' => $element['#field_name'])),
-        'widget' => drupal_to_js($field['widget']),
+        'instance' => swfupload_to_js(array('name' => $element['#field_name'])),
+        'widget' => swfupload_to_js($field['widget']),
       ),
       'file_size_limit' => ($field['widget']['max_filesize_per_file'] ? $field['widget']['max_filesize_per_file'] : 0),
       'file_types' => (empty($field['widget']['file_extensions']) ? '' : '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions'])),
       'file_types_description' => ($element['#description'] ? $element['#description'] : ''),
       'file_upload_limit' => $limit,
       'custom_settings' => array(
-        'upload_stack_value' => (!empty($element['#value'])) ? drupal_to_js($element['#value']) : '[]',
+        'upload_stack_value' => (!empty($element['#value'])) ? swfupload_to_js($element['#value']) : '[]',
         'max_queue_size' => ($field['widget']['max_filesize_per_node'] ? $field['widget']['max_filesize_per_node'] : 0),
       ),
     );
@@ -402,4 +402,17 @@ function swfupload_thumb_path($file, $create_thumb = FALSE) {
     swfupload_thumb($file, $filepath);
   }
   return $filepath;
+}
+
+/**
+ * Converts a PHP variable into its Javascript equivalent.
+ * This function is used instead of drupal_to_js to avoid malformed unicode encoded data when using <, > or &.
+ */
+function swfupload_to_js($var) {
+  if (function_exists('json_encode')) {
+    return str_replace(array('<', '>', '&'), array('\u003c', '\u003e', '\u0026'), json_encode($var));
+  }
+  else {
+    return str_replace(array('\x3c', '\x3e', '\x26'), array('\u003c', '\u003e', '\u0026'), drupal_to_js($var));
+  }
 }

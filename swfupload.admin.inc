@@ -93,7 +93,7 @@ function swfupload_js() {
   $p->instance = $instance;
   $p->widget = $widget;
   $p->messages = drupal_get_messages();
-  echo drupal_to_js($p);
+  echo swfupload_to_js($p);
   exit(0);
 }
 
