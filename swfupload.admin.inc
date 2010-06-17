@@ -55,10 +55,15 @@ function swfupload_js() {
       );
       break;
     case 'move_uploaded_file':
+      $max_filesize = parse_size(file_upload_max_size());
+      if (!empty($widget->max_filesize_per_file) && parse_size($widget->max_filesize_per_file) < $max_filesize) {
+        $max_filesize = parse_size($widget->max_filesize_per_file);
+      }
+
       $file->validators = array(
         'file_validate_extensions' => array($widget->file_extensions),
         'filefield_validate_image_resolution' => array($widget->max_resolution, $widget->min_resolution),
-        'file_validate_size' => array($widget->max_filesize_per_file, $widget->max_filesize_per_file),
+        'file_validate_size' => array($max_filesize),
       );
       $file->file_path = $file_path;
 
