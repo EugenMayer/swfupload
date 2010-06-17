@@ -153,7 +153,6 @@ function swfupload_add_js($element) {
       'file_types' => (empty($field['widget']['file_extensions']) ? '' : '*.'. str_replace(" ", ";*.", $field['widget']['file_extensions'])),
       'file_types_description' => ($element['#description'] ? $element['#description'] : ''),
       'file_upload_limit' => $limit,
-      'debug' => true,
       'custom_settings' => array(
         'upload_stack_value' => (!empty($element['#value'])) ? swfupload_to_js($element['#value']) : '[]',
         'max_queue_size' => ($field['widget']['max_filesize_per_node'] ? $field['widget']['max_filesize_per_node'] : 0),
