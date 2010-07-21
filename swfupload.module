@@ -38,18 +38,12 @@ function swfupload_upload_access() {
   // Validate the request
   if (!empty($p->sid)) {
     $sid = split("\*", hex2bin($p->sid));
-    
-    // Use the core methods to restore the session
-    global $user;
-    $user = user_load($sid[0]);
-    // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token)
-    session_id($user->sid);
 
     if (!user_access('upload files with swfupload')) {
       return false;
     }
 
-    if (!$user->uid) {
+    if (!$sid[0]) {
       return ($sid[1] == md5($_SERVER['REMOTE_ADDR']));
     }
 
@@ -58,8 +52,16 @@ function swfupload_upload_access() {
       $valid_sids[] = md5($row->sid);
     }
 
-    if (in_array($sid[1], $valid_sids)) {
-      return TRUE;
+    if (in_array($sid[1], $valid_sids) && flood_is_allowed('swfupload_restore_session', 5)) {
+      // Use the core methods to restore the session
+      global $user;
+      $user = user_load($sid[0]);
+      // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token)
+
+      return user_access('upload files with swfupload');
+    }
+    else {
+      flood_register_event('swfupload_restore_session');
     }
 
     // The sid doesn't exist for this user.
