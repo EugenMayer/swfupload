@@ -43,15 +43,7 @@ function swfupload_upload_access() {
     $uid = $hash_arr[0];
     $token = $hash_arr[1];
 
-    // Try to load a user object with the sent uid.
-    $account = user_load($uid);
-
-    // We do not need to proceed if this check already fails.
-    if (!user_access('upload files with swfupload', $account)) {
-      return false;
-    }
-
-    if ($user->uid == 0) {
+    if ($uid == 0) {
       // If the uid is 0, there will be no session id.
       // We'll check if the hash of the current remote address matches the sent one.
       return ($token == md5($_SERVER['REMOTE_ADDR']));
@@ -73,7 +65,7 @@ function swfupload_upload_access() {
 
       // Now load the global user object to "login". We use the $uid provided, as we verfified
       // that the token is correct (and matches this user)
-      $user = $account;
+      $user = user_load($uid);
 
       // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token).
       session_id($user->sid);
