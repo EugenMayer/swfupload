@@ -37,34 +37,43 @@ function swfupload_upload_access() {
 
   // Validate the request
   if (!empty($p->sid)) {
+    // $sid[0] is the uid the user wants to athenticate for
+    // $sid[1] is the md5-hashes sid of drupal as autheticaten token
     $sid = split("\*", hex2bin($p->sid));
+    $uid = $sid[0];
+    $token = $sid[1];
 
-    if (!user_access('upload files with swfupload')) {
-      return false;
+    // If it is a guest, we restore the session a different way.
+    if ($uid == 0) {
+      return ($$token == md5($_SERVER['REMOTE_ADDR']));
     }
-
-    if (!$sid[0]) {
-      return ($sid[1] == md5($_SERVER['REMOTE_ADDR']));
-    }
-
-    $result = db_query("SELECT sid FROM {sessions} WHERE uid = %d", $sid[0]);
+    // Get all session for the provided user
+    $result = db_query("SELECT sid FROM {sessions} WHERE uid = %d", $uid);
+    // create our hashes we need for verification
     while ($row = db_fetch_object($result)) {
       $valid_sids[] = md5($row->sid);
     }
-
-    if (in_array($sid[1], $valid_sids) && flood_is_allowed('swfupload_restore_session', 5)) {
-      // Use the core methods to restore the session
+    
+    // If our token matches any valid sids, the user shall be authenticated
+    if (in_array($token, $valid_sids) && flood_is_allowed('swfupload_restore_session', 5)) {
+      // Use the global user, as we are about to load that object manually ( create it).
       global $user;
-      $user = user_load($sid[0]);
-      // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token)
 
+      // Now load the global user object to "login". We use the $uid provided, as we verfified
+      // that the token is correct (and matches this user
+      $user = user_load($uid);
+
+      // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token).
+      session_id($user->sid);
+
+      // As the user session is restored, check for general rights to use swfupload
       return user_access('upload files with swfupload');
     }
     else {
       flood_register_event('swfupload_restore_session');
     }
 
-    // The sid doesn't exist for this user.
+    // The sid doesn't exist for this user or its a flood attack
     return FALSE;
   }
   // No session ID is set, we can assume we're still in the same session
