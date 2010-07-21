@@ -51,6 +51,12 @@ function swfupload_upload_access() {
 
     // Get all session for the provided user
     $result = db_query("SELECT sid FROM {sessions} WHERE uid = %d", $uid);
+    // There is no user with that uid, deny permission.
+    if($result == false) {
+      return false;
+    } 
+
+    $valid_sids = array();
     // create our hashes we need for verification
     while ($row = db_fetch_object($result)) {
       $valid_sids[] = md5($row->sid);
