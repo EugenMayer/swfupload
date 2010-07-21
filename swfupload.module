@@ -37,16 +37,26 @@ function swfupload_upload_access() {
 
   // Validate the request
   if (!empty($p->sid)) {
-    // $sid[0] is the uid the user wants to athenticate for
-    // $sid[1] is the md5-hashes sid of drupal as autheticaten token
-    $sid = split("\*", hex2bin($p->sid));
-    $uid = $sid[0];
-    $token = $sid[1];
+    // $hash_arr[0] is the uid the user wants to athenticate for
+    // $hash_arr[1] is the md5-hashes sid of drupal as authetication token
+    $hash_arr = split("\*", hex2bin($p->sid));
+    $uid = $hash_arr[0];
+    $token = $hash_arr[1];
 
-    // If it is a guest, we restore the session a different way.
-    if ($uid == 0) {
-      return ($$token == md5($_SERVER['REMOTE_ADDR']));
+    // Try to load a user object with the sent uid.
+    $account = user_load($uid);
+
+    // We do not need to proceed if this check already fails.
+    if (!user_access('upload files with swfupload', $account)) {
+      return false;
     }
+
+    if ($user->uid == 0) {
+      // If the uid is 0, there will be no session id.
+      // We'll check if the hash of the current remote address matches the sent one.
+      return ($token == md5($_SERVER['REMOTE_ADDR']));
+    }
+
     // Get all session for the provided user
     $result = db_query("SELECT sid FROM {sessions} WHERE uid = %d", $uid);
     // create our hashes we need for verification
@@ -54,14 +64,16 @@ function swfupload_upload_access() {
       $valid_sids[] = md5($row->sid);
     }
     
-    // If our token matches any valid sids, the user shall be authenticated
+    // If the hashed session is is present in the stored hashed session ids from the database,
+    // and if there weren't more that 5 invalid attempts for matching,
+    // make the user account global so other modules can use its credentials.
     if (in_array($token, $valid_sids) && flood_is_allowed('swfupload_restore_session', 5)) {
-      // Use the global user, as we are about to load that object manually ( create it).
+      // Use the global user, as we are about to store the loaded account object in it.
       global $user;
 
       // Now load the global user object to "login". We use the $uid provided, as we verfified
-      // that the token is correct (and matches this user
-      $user = user_load($uid);
+      // that the token is correct (and matches this user)
+      $user = $account;
 
       // This is needed. Most people forget about this - thats why forms wont work anymore ... the validation fails (token).
       session_id($user->sid);
@@ -70,6 +82,7 @@ function swfupload_upload_access() {
       return user_access('upload files with swfupload');
     }
     else {
+      // Register unwanted attempts to rstore the session.
       flood_register_event('swfupload_restore_session');
     }
 
