@@ -73,7 +73,12 @@ function swfupload_widget_value($element, $edit = FALSE) {
           // Due to a bug in CCK or filefield, the fileobject store in the CCK cache (cache_content) is not stored fully
           // that means some fields are simply missing (filepath etc.). We need to properly restore it here 
           $file = field_file_load($tmp_file['fid']);
-          $file += array('description' => $tmp_file['data']['description'], 'alt' => $tmp_file['data']['alt'], 'title' => $tmp_file['data']['title']);
+  	  $file += array(
+            'description' => $tmp_file['data']['description']? $tmp_file['data']['description']: '',
+            'alt' => $tmp_file['data']['alt']? $tmp_file['data']['alt']: '',
+            'title' => $tmp_file['data']['title']? $tmp_file['data']['title']: '',
+            'list' => $tmp_file['list'],
+          );
           // If we're dealing with an image, create a thumbpath
           if (image_get_info($file['filepath'])) {
             $file['thumb'] = file_create_url(swfupload_thumb_path($file));
