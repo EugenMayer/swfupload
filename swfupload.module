@@ -213,7 +213,7 @@ function hex2bin($h) {
 /**
  * Implementation of our own API hook_swfupload().
  */
-function swfupload_swfupload(&$file, $op, &$instance, $widget) {  
+function swfupload_swfupload(&$file, $op, &$instance, $widget) {
   switch ($op) {
     case 'init':
       $columns = 0;
